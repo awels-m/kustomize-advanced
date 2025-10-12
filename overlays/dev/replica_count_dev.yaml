@@ -1,0 +1,7 @@
+# overlays/dev/replica_count_dev.yaml
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: your-app
+spec:
+  replicas: 2
