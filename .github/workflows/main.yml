@@ -1,11 +1,10 @@
 # .github/workflows/main.yml
-# CI that builds with Kustomize and deploys to EKS using kubectl
+# FINAL: region comes from your AWS_REGION secret
 
 name: Deploy with Kustomize
 
 on:
   push:
-    # You said your default branch is "master"
     branches:
       - master
 
@@ -13,43 +12,56 @@ jobs:
   deploy:
     runs-on: ubuntu-latest
 
+    # Use your secret to populate region in the job environment
+    env:
+      AWS_REGION: ${{ secrets.AWS_REGION }}
+      AWS_DEFAULT_REGION: ${{ secrets.AWS_REGION }}
+
     steps:
-      # 1) Check out your repository so the runner has your files
       - name: Checkout
         uses: actions/checkout@v2
 
-      # 2) Install kubectl on the runner
       - name: Set up Kubectl
         uses: azure/setup-kubectl@v1
 
-      # 3) Install kustomize on the runner
       - name: Set up Kustomize
         uses: imranismail/setup-kustomize@v1
 
-      # 4) Log in to AWS in the runner using your GitHub Secrets
       - name: Configure AWS credentials
         uses: aws-actions/configure-aws-credentials@v4
         with:
-          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-access-key-id:     ${{ secrets.AWS_ACCESS_KEY_ID }}
           aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
-          aws-region: ${{ secrets.AWS_REGION }}
+          aws-region:            ${{ secrets.AWS_REGION }}
 
-      # 5) Write kubeconfig for your EKS cluster so kubectl knows where to connect
+      - name: Sanity: who am I and which clusters exist?
+        run: |
+          set -e
+          echo "AWS CLI version:"
+          aws --version
+          echo "Caller identity:"
+          aws sts get-caller-identity
+          echo "Listing clusters in region: $AWS_REGION"
+          aws eks list-clusters --region "$AWS_REGION"
+          echo "Describing cluster: ${{ secrets.EKS_CLUSTER_NAME }}"
+          aws eks describe-cluster \
+            --region "$AWS_REGION" \
+            --name "${{ secrets.EKS_CLUSTER_NAME }}" \
+            --query "cluster.{name:name,endpoint:endpoint,publicEndpoint:resourcesVpcConfig.endpointPublicAccess}" \
+            --output json
+
       - name: Update kubeconfig for EKS
         run: |
+          set -e
           aws eks update-kubeconfig \
-            --region "${{ secrets.AWS_REGION }}" \
+            --region "$AWS_REGION" \
             --name   "${{ secrets.EKS_CLUSTER_NAME }}"
 
-      # 6) (Optional but helpful) Prove we can talk to the cluster
       - name: Kubectl sanity
         run: |
           kubectl cluster-info
           kubectl get nodes
 
-      # 7) Deploy your overlay to the cluster
-      #    If your overlay folder is named "prod", change production -> prod
       - name: Deploy to Kubernetes
         run: |
           kubectl apply -k ./overlays/production/
-
