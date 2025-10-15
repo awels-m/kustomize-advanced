@@ -30,7 +30,7 @@ jobs:
           aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
           aws-region: ${{ secrets.AWS_REGION }}
 
-      - name: Sanity: who am I and which clusters exist?
+      - name: "Sanity: who am I and which clusters exist?"
         run: |
           set -e
           echo "AWS CLI version:"
@@ -39,13 +39,19 @@ jobs:
           aws sts get-caller-identity
           echo "Clusters in region ${AWS_REGION}:"
           aws eks list-clusters --region "${AWS_REGION}"
-          echo "Describe cluster ${ { secrets.EKS_CLUSTER_NAME } }"
-          aws eks describe-cluster --region "${AWS_REGION}" --name "${{ secrets.EKS_CLUSTER_NAME }}" --query "cluster.{name:name,endpoint:endpoint}" --output json
+          echo "Describe cluster ${{ secrets.EKS_CLUSTER_NAME }}"
+          aws eks describe-cluster \
+            --region "${AWS_REGION}" \
+            --name "${{ secrets.EKS_CLUSTER_NAME }}" \
+            --query "cluster.{name:name,endpoint:endpoint,publicEndpoint:resourcesVpcConfig.endpointPublicAccess}" \
+            --output json
 
       - name: Update kubeconfig for EKS
         run: |
           set -e
-          aws eks update-kubeconfig --region "${AWS_REGION}" --name "${{ secrets.EKS_CLUSTER_NAME }}"
+          aws eks update-kubeconfig \
+            --region "${AWS_REGION}" \
+            --name   "${{ secrets.EKS_CLUSTER_NAME }}"
 
       - name: Kubectl sanity
         run: |
